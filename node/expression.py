@@ -31,28 +31,41 @@ class Builder:
         self.node_tree = node_tree
         self.created_nodes = []
 
-    def new(self, node_type):
+    def new(self, node_type, **node_params):
         node = self.node_tree.nodes.new(node_type)
+        for k, v in node_params.items():
+            node[k] = v
+
         self.created_nodes.append(node)
         return node
 
+    def connect(self, value, socket):
+        return value_types[socket.type].connect(self, value, socket)
+        
+    def link(self, value, input):
+        return self.node_tree.links.new(value.socket, input)
 
     def __enter__(self):
         self.previous = Builder.current
         Builder.current = self
 
-
     def __exit__(self, type, value, traceback):
+        if traceback:
+            for node in self.created_nodes:
+                self.node_tree.nodes.remove(node)
+        else:
+            arrange_nodes(self.node_tree, target_nodes=self.created_nodes)
+
+
         Builder.current = self.previous
 
-def node_builder(node_tree):
+def graph_builder(node_tree):
     return Builder(node_tree)
 
 
 def has_builder(f):
     def wrapper(*args, **kwargs):
-
-        assert Builder.current is not None, "no active node environment, please use in 'with(node_builder):' block"
+        assert Builder.current is not None, "no active node environment, please use in 'with(graph_builder):' block"
         return f(Builder.current, *args, **kwargs)
     return wrapper
 
@@ -65,78 +78,39 @@ def parameter_name(s):
 
     return s
 
-# def socket_parameter(socket):
-#     name = parameter_name(socket.identifier)
-#     value_type=value_types[socket.type]
+def socket_parameter(socket):
+    name = parameter_name(socket.identifier)
+    value_type=value_types[socket.type]
     
-#     return inspect.Parameter(name, 
-#         kind=inspect.Parameter.POSITIONAL_OR_KEYWORD, 
-#         default=value_type.default_value(socket.default_value), 
-#         annotation=Optional[value_type.annotation()])   
+    return inspect.Parameter(name, 
+        kind=inspect.Parameter.POSITIONAL_OR_KEYWORD, 
+        default=value_type.default_value(socket.default_value), 
+        annotation=value_type.annotation())   
 
+@has_builder
+def node_builder(builder, node_type, **node_params):
+    def f(*args, **kwargs):
+        node = builder.new(node_type, **node_params)
 
-# def template_node(node_type):
+        sockets = [input for input in node.inputs if input.enabled]
+        signature = inspect.Signature(parameters = [socket_parameter(input) for input in sockets])
 
-#     sockets = [input for input in node.inputs if input.enabled]
-#     signature = inspect.Signature(parameters = [socket_parameter(input) for input in sockets])
+        args = signature.bind(*args, **kwargs)
+        args.apply_defaults()
 
-#     def f(*args, **kwargs):
-#         args = signature.bind(args, kwargs)
-#         args.apply_defaults()
+        assert len(args.arguments) == len(sockets)
+        for socket, value in zip(sockets, args.arguments.values()):
+            builder.connect(value, socket)
 
-#         assert len(args.arguments) == len(sockets)
-#         for v in zip(sockets, args.arguments.values(), signature.parameters):
-#             pass
-#             # print(socket, k, v, param)
+        return Node(node)
 
-#     return f
+    return f
 
-
-# def template_parameter(template:bpy.types.NodeInternalSocketTemplate):
-    
-#     name = parameter_name(template.identifier)
-#     value_type=value_types[template.type]
-    
-#     return inspect.Parameter(name, 
-#         kind=inspect.Parameter.POSITIONAL_OR_KEYWORD, 
-#         default=None, 
-#         annotation=Optional[value_type.annotation()])   
-
-
-# def node_templates(node_type):
-#     templates = []
-#     for i in itertools.count():
-#         template = node_type.input_template(i)
-#         if template is None:
-#             return templates
-#         elif template.type in value_types:
-#             templates.append(template)    
-
-# @has_builder
-# def template_node(builder, node_type, **node_params):
-#     templates = node_templates(node_type)
-        
-#     input_params = [template_parameter(template) for template in templates]
-#     signature = inspect.Signature(input_params)
-
-#     def f(*args, **kwargs):
-#         args = signature.bind(*args, **kwargs)
-#         args.apply_defaults()
-
-#         node = builder.new(node_type.bl_rna.identifier)
-#         for k, v in node_params.items():
-#             node[k] = v
-
-#         assert len(args.arguments) == len(templates)
-#         for v in zip(templates, args.arguments.values(), signature.parameters):
-#             pass
-#             # print(socket, k, v, param)
-
-#     return f
 
 
 def vector_math(op):
-    return template_node(bpy.types.ShaderNodeVectorMath, op=op)
+    return node_builder('ShaderNodeVectorMath', operation=op)
+
 
 class Node:
     def __init__(self, node):
@@ -145,7 +119,7 @@ class Node:
         self._outputs = [value_types[output.type](output) for output in node.outputs 
             if output.type in value_types and output.enabled] 
 
-        self._named = {value.socket.name: value for value in self._outputs}
+        self._named = {parameter_name(value.socket.identifier): value for value in self._outputs}
 
     def __getattr__(self, key):
         return self._named[key]
@@ -205,12 +179,18 @@ class Vector(Value):
         assert len(v) == 3
         return tuple(v)
 
+    @staticmethod
+    def connect(builder, v, socket):
+        if isinstance(v, Vector):
+            builder.link(v, socket)
+        else:
+            assert False, "Vector.connect: unexpected type: " + str(type(v))
+
     def __add__(self, other):
-        print("baz")
-        return vector_math('ADD')(self, (4, "TURPTLE"))
+        return vector_math('ADD')(self, other).vector
 
     def __radd__(self, other):
-        return vector_math('ADD')(other, self)
+        return vector_math('ADD')(other, self).vector
 
 
 
@@ -293,70 +273,42 @@ socket_types = {
 
     
 
-def make_param(group_inputs, param:inspect.Parameter):
+def make_param(node_tree, param:inspect.Parameter):
     assert param.annotation is not None, "expected type annotation on input parameters"
     assert issubclass(param.annotation, Value), "unsupported input type: " + str(param.annotation.type)
 
     socket_type = socket_types[param.annotation.type]
-    return group_inputs.inputs.new(socket_type, param.name)
+    return node_tree.inputs.new(socket_type, param.name)
 
 
 
 def build_group(f:Callable, name:str='Group', nodes_type:str='ShaderNodeTree'):
     node_tree = bpy.data.node_groups.new(name, nodes_type)
-    with(node_builder(node_tree)):
+
+    builder = graph_builder(node_tree)
+    with(builder):
 
         sig = inspect.signature(f)
         for param in sig.parameters.values():
             param = make_param(node_tree, param)
 
-        node_inputs = node_tree.nodes.new('NodeGroupInput')
-        node_outputs = node_tree.nodes.new('NodeGroupOutput')
+        node_inputs = builder.new('NodeGroupInput')
+        node_outputs = builder.new('NodeGroupOutput')
 
         input_node = Node(node_inputs)
         outputs = f(*input_node)
+    
+        def add_output(value, name='value'):
+            node_tree.outputs.new(socket_types[value.type], name)
+            builder.connect(value, node_outputs.inputs[name])
 
-
-
-# def generate_group(name:str='Group', nodes_type:str='ShaderNodeTree') -> bpy.types.NodeGroup:
-#     group = bpy.data.node_groups.new(name, nodes_type)
-
-#     group_inputs = group.nodes.new('NodeGroupInput')
-#     for inp in inputs:
-#         group.inputs.new(node_type(inp), inp.node.name)
-
-#     group_outputs = group.nodes.new('NodeGroupOutput')
-
-#     ctx = struct(
-#         nodes = {},
-#         node_tree = group,
-#         inputs = group_inputs.outputs
-#     )
-
+        if isinstance(outputs, dict):
+            for k, value in outputs.items():
+                add_output(value, k)
+        elif isinstance(outputs, Value):
+            add_output(outputs)
+        else:
+            assert False, "invalid output type"
  
-#     def add_output(output, name='Value'):
-#         assert isinstance(output, Value)
-#         inp_socket = output.connect(ctx)
-
-#         out_socket = group_outputs.inputs.new(node_type(output), name)
-#         group.links.new(inp_socket, out_socket)
-
-#     if isinstance(outputs, Value):
-#         add_output(outputs)
-
-#     elif isinstance(outputs, list):
-#         for output in outputs:
-#             if output is tuple:
-#                 add_output(output[1], name=output[0])
-#             else:
-#                 add_output(output)
-#     else:
-#         assert False, "unexpected output type {}" + str(type(output))
+    return node_tree
  
- 
-#     arrange_nodes(group)
-#     return group
-        
-# def import_group(f : Callable, name:str, node_type:str='ShaderNodeTree') -> bpy.types.NodeGroup:
-#     inputs, outputs = build_graph(f)
-#     return generate_group(inputs, outputs, name, node_type)
