@@ -6,8 +6,9 @@ sys.path.append('.')
 
 # from node.expression import Vector, import_group, import_nodes
 
-from node.expression import build_group
+from node.group import build_group
 from node.value import Float, Bool, Vector, Color
+from node.expression import NodeSet
 
 
 def open_nodes(context):
@@ -26,11 +27,13 @@ def open_nodes(context):
 if __name__ == "__main__":
 
     
-    def foo(a : Vector, b : Vector, test:Color=(1, 0, 0, 1)):
+    def foo(nodes : NodeSet, a : Vector, b : Vector, test:Color=(1, 0, 0, 1)):
         k = a.x + a.y
 
-        c = b.map(math.sine)
+        c = b.map(nodes.math.sine)
 
+        print(nodes.math.sine)
+        
         return dict(bar = -k // 3, baz = c + c)
 
     group = build_group(foo)

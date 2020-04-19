@@ -12,10 +12,10 @@ def converts_vector(v):
 
 
 class Value:
-    def __init__(self, builder, socket):
+    def __init__(self, tree, socket):
         super().__init__()
 
-        self.builder = builder
+        self.tree = tree
         self.socket = socket.socket if isinstance(socket, Value)\
             else socket
 
@@ -28,15 +28,15 @@ class Value:
 
     @property 
     def nodes(self):
-        return self.builder.nodes
+        return self.tree.nodes
     
     @property
     def math(self):
-        return self.builder.nodes.math
+        return self.tree.nodes.math
 
     @property
     def vector_math(self):
-        return self.builder.nodes.vector_math
+        return self.tree.nodes.vector_math
     
 
     @property
@@ -48,8 +48,8 @@ class Value:
 
 
 class Float(Value):
-    def __init__(self, builder, socket):
-        super().__init__(builder, socket)
+    def __init__(self, tree, socket):
+        super().__init__(tree, socket)
          
     type = 'Float'
 
@@ -62,15 +62,15 @@ class Float(Value):
         return float(v)
 
     def color(self):
-        return Color(self.socket)
+        return Color(self.tree, self.socket)
 
     def vector(self):
-        return Vector(self.socket)
+        return Vector(self.tree, self.socket)
 
     @staticmethod
-    def connect(builder, v, socket):
+    def connect(tree, v, socket):
         if isinstance(v, Float):
-            return builder._new_link(v, socket)
+            return tree._new_link(v, socket)
         elif isinstance(v, Number):
             socket.default_value = v
             return None
@@ -112,8 +112,8 @@ class Float(Value):
 
 
 class Vector(Value):
-    def __init__(self, builder, socket):
-        super().__init__(builder, socket)
+    def __init__(self, tree, socket):
+        super().__init__(tree, socket)
          
     type = 'Vector'
 
@@ -128,9 +128,9 @@ class Vector(Value):
         return tuple(v)
 
     @staticmethod
-    def connect(builder, v, socket):
+    def connect(tree, v, socket):
         if isinstance(v, Vector) or isinstance(v, Float):
-            builder._new_link(v, socket)
+            tree._new_link(v, socket)
         elif isinstance(v, Number):
             socket.default_value = (v, v, v)
         elif isinstance(v, tuple):
@@ -140,7 +140,7 @@ class Vector(Value):
             if all(literals):
                 socket.default_value = v            
             else:
-                builder._new_link(builder.nodes.combine_xyz(*v), socket)
+                tree._new_link(tree.nodes.combine_xyz(*v), socket)
 
         else:
             raise TypeError("expected tuple[scalar, scalar, scalar]|Vector, got " + type(v).__name__)
@@ -199,8 +199,8 @@ class Vector(Value):
 
 
 class Int(Value):
-    def __init__(self, builder, socket):
-        super().__init__(builder, socket)
+    def __init__(self, tree, socket):
+        super().__init__(tree, socket)
          
     type = 'Int'
 
@@ -213,12 +213,12 @@ class Int(Value):
         return int(v)         
 
     def float(self):
-        return Float(self.builder, self.socket)
+        return Float(self.tree, self.socket)
 
     @staticmethod
-    def connect(builder, v, socket):
+    def connect(tree, v, socket):
         if isinstance(v, Int):
-            return builder._new_link(v, socket)
+            return tree._new_link(v, socket)
         elif isinstance(v, Number):
             socket.default_value = int(v)
             return None
@@ -227,8 +227,8 @@ class Int(Value):
 
 
 class Bool(Value):
-    def __init__(self, builder, socket):
-        super().__init__(builder, socket)
+    def __init__(self, tree, socket):
+        super().__init__(tree, socket)
          
     type = 'Bool'
 
@@ -241,12 +241,12 @@ class Bool(Value):
         return bool(v)  
 
     def float(self):
-        return Float(self.builder, self.socket)
+        return Float(self.tree, self.socket)
 
     @staticmethod
-    def connect(builder, v, socket):
+    def connect(tree, v, socket):
         if isinstance(v, Bool):
-            return builder._new_link(v, socket)
+            return tree._new_link(v, socket)
         elif isinstance(v, bool):
             socket.default_value = v
             return None
@@ -256,8 +256,8 @@ class Bool(Value):
 
 
 class String(Value):
-    def __init__(self, builder, socket):
-        super().__init__(builder, socket)
+    def __init__(self, tree, socket):
+        super().__init__(tree, socket)
          
     @staticmethod
     def annotation():
@@ -268,9 +268,9 @@ class String(Value):
         return str(v)  
 
     @staticmethod
-    def connect(builder, v, socket):
+    def connect(tree, v, socket):
         if isinstance(v, String):
-            return builder._new_link(v, socket)
+            return tree._new_link(v, socket)
         elif isinstance(v, str):
             socket.default_value = v
             return None
@@ -279,23 +279,23 @@ class String(Value):
 
 
 class Shader(Value):
-    def __init__(self, builder, socket):
-        super().__init__(builder, socket)
+    def __init__(self, tree, socket):
+        super().__init__(tree, socket)
          
     @staticmethod
     def annotation():
          return Shader
 
     @staticmethod
-    def connect(builder, v, socket):
+    def connect(tree, v, socket):
         if isinstance(v, String):
-            return builder._new_link(v, socket)
+            return tree._new_link(v, socket)
         else:
             raise TypeError("expected Shader, got " + type(v).__name__) 
 
 class Color(Value):
-    def __init__(self, builder, socket):
-        super().__init__(builder, socket)
+    def __init__(self, tree, socket):
+        super().__init__(tree, socket)
          
     type = 'Color'
     
@@ -310,9 +310,9 @@ class Color(Value):
         return tuple(v)             
 
     @staticmethod
-    def connect(builder, v, socket):
+    def connect(tree, v, socket):
         if isinstance(v, Color) or isinstance(v, Float):
-            builder._new_link(v, socket)
+            tree._new_link(v, socket)
 
         elif isinstance(v, Number):
             socket.default_value = (v, v, v, 1)
@@ -324,12 +324,12 @@ class Color(Value):
             if all(literals):
                 socket.default_value = v            
             else:
-                builder._new_link(builder.nodes.combine_rgb(*v), socket)
+                tree._new_link(tree.nodes.combine_rgb(*v), socket)
         else:
             raise TypeError("expected tuple[scalar x4]|Color, got " + type(v).__name__)
 
     def vector(self):
-        return Vector(self.builder, self.socket)
+        return Vector(self.tree, self.socket)
 
     @cached_property
     def rgb(self):
