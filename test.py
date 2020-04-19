@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     
     def foo(a : Vector, b : Vector, test:Color=(1, 0, 0, 1)):
-        k = a.x + b
+        k = a.x + a.y
 
         c = b.map(math.sine)
 

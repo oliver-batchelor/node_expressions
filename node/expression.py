@@ -1,3 +1,4 @@
+# pylint: disable=E1101,E0401
 from __future__ import annotations
 
 import bpy
@@ -16,11 +17,12 @@ import itertools
 from functools import partial
 
 from .value import value_types, Value
-
+from .util import typename, assert_type
 
 class Namespace:
-    def __init__(self, d):
+    def __init__(self, d, name=None):
         self.__dict__.update(d)
+        self.name = name or "Namespace"
 
     def __str__(self):
         return self.__dict__.__str__()
@@ -28,6 +30,12 @@ class Namespace:
     def __repr__(self):
         return self.__dict__.__repr__()
 
+    def getattr(self, attr):
+        value = self.__dict__.get(attr)
+        if value is None:
+            raise AttributeError("{} has no attribute '{}'", self.name, attr)
+
+        
 def namespace(**d):
     return Namespace(d)
 
@@ -48,15 +56,16 @@ def node_inputs(node_type):
             )
 
 
-def node_properties(node_type):
+def node_properties(node_type, common = {}):
     def prop(p):
         return namespace(
             name = p.name,
             type = p.type,
             options = [item.name for item in p.enum_items]\
-                if isinstance(p, bpy.types.EnumProperty) else []
+                if isinstance(p, bpy.types.EnumProperty) else [],
+            
+            is_common = p.name in common
         )
-
 
     rna = node_type.bl_rna
     properties = {parameter_name(p.name):prop(p) for p in rna.properties 
@@ -65,16 +74,17 @@ def node_properties(node_type):
     return properties
 
 
-def node_desc(node_type):
+def node_desc(node_type, common_properties):
     return namespace(
         type=node_type, 
         inputs = node_inputs(node_type), 
-        properties=node_properties(node_type),
+        properties=node_properties(node_type, common_properties),
     )
 
-def node_subtypes(base_node):
+def node_subclasses(base_node):
     d = {}
     prefix = base_node.__name__
+    common_properties = node_properties(base_node)
 
     for type_name in dir(bpy.types):
         t = getattr(bpy.types, type_name)
@@ -82,40 +92,46 @@ def node_subtypes(base_node):
         has_sockets = hasattr(t, 'input_template') or hasattr(t, 'output_template')
         if issubclass(t, base_node) and has_sockets:
               name = type_name[len(prefix):]
-              d[name] = node_desc(t)
+              d[name] = node_desc(t, common_properties)
+
 
     return d
 
-def node_builders(builder, node_descs):
-    d = {}
+def node_builders(builder, node_descs, name):
+    builders = {}
     for k, desc in node_descs.items():
 
         node_builder = NodeBuilder(builder, desc)
-        operations = desc.operations['operation'].options \
-             if 'operation' in desc.operations else []
+        operations = desc.properties['operation'].options \
+             if 'operation' in desc.properties else []
+
 
         # if the node type has many operations, present them as a Namespace to the user
         if len(operations) > 1:
-            d = {parameter_name(operation):node_builder.set(operation=operation) 
-                for operation in desc.operations}
-            node_builder = Namespace(d)        
+            ops = {parameter_name(operation):node_builder.set(operation=operation.upper()) 
+                for operation in operations}
+            node_builder = Namespace(ops, name=name + "." + k)        
 
-        d[parameter_name(k)] = node_builder
+        builders[parameter_name(k)] = node_builder
 
-    return Namespace(d)
+
+    return Namespace(builders, name=name)
 
 class TreeType:
     def __init__(self, type):
         self.type = type
         self._node_builders = None
 
+
     @cached_property
     def nodes(self):
-        return node_subtypes(self.type)
+        return node_subclasses(self.type)
 
     def node_builders(self, builder):
+        name =  parameter_name(typename(self.type))
+
         if self._node_builders is None: 
-            self._node_builders = node_builders(builder, self.nodes)
+            self._node_builders = node_builders(builder, self.nodes, name=name)
 
         return self._node_builders
 
@@ -138,9 +154,14 @@ class TreeBuilder:
 
     def connect(self, value, socket):
         return value_types[socket.type].connect(self, value, socket)
+
+    
+    def import_node(self, node):
+        assert isinstance(node, bpy.types.Node)
+        return Node(self, node)
         
     def _new_node(self, node_type, properties):
-        node = self.node_tree.nodes.new(self.tree_type.prefix + node_type)
+        node = self.node_tree.nodes.new(node_type)
 
         for k, v in properties.items():
             assert getattr(node, k) is not None, "node {} has no property {}".format(node.type, k)
@@ -150,18 +171,22 @@ class TreeBuilder:
         return node
 
     def _new_link(self, value, input):
+        assert value.builder is self, ""
         return self.node_tree.links.new(value.socket, input)
 
 
 
+def camel_to_snake(name):
+  name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+  return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
 
 def parameter_name(s):
-    s = s.lower().strip()               # lower case, strip whitespace
+    s = s.strip()               # lower case, strip whitespace
     s = re.sub('[\\s\\t\\n]+', '_', s)  # spaces to underscores
     s = re.sub('[^0-9a-zA-Z_]', '', s)  # delete invalid characters
 
-    return s
+    return camel_to_snake(s)
 
 def socket_parameter(socket):
     name = parameter_name(socket.identifier)
@@ -173,10 +198,10 @@ def socket_parameter(socket):
         annotation=value_type.annotation())   
 
 class Node:
-    def __init__(self, node):
+    def __init__(self, builder, node):
         self._node = node
 
-        self._outputs = [value_types[output.type](output) for output in node.outputs 
+        self._outputs = [value_types[output.type](builder, output) for output in node.outputs 
             if output.type in value_types and output.enabled] 
 
         self._named = {parameter_name(value.socket.identifier): value for value in self._outputs}
@@ -201,9 +226,9 @@ class Node:
         raise NotImplementedError
 
 
-def wrap_node(node):
+def wrap_node(builder, node):
     assert isinstance(node, bpy.types.Node)
-    wrapper = Node(node)
+    wrapper = builder.import_node(node)
 
     if len(wrapper) == 1:
         return wrapper[0]
@@ -235,17 +260,16 @@ class NodeBuilder:
 
     @property
     def node_type(self):
-        return self.desc.type.name
+        return self.desc.type.__name__
 
     def set(self, **properties):
-
         updated = self.properties.copy()
+
         for k, v in properties.items():
             if k not in self.desc.properties:
                 raise TypeError('node {} has no property {}'.format(self.node_type, k))
 
             updated[k] = v
-
         return NodeBuilder(self.builder, self.desc, updated)
 
 
@@ -266,12 +290,11 @@ class NodeBuilder:
                 except TypeError as e:
                     raise TypeError("{}.{} - {}"\
                         .format(self.node_type,  param_name, e.args[0]))  
-            return wrap_node(node)
+
+            return wrap_node(self.builder, node)
         
         except TypeError as e:
             raise TypeError(e.args[0]) from None
-
-
 
 
 
@@ -314,7 +337,7 @@ def build_group(f:Callable, name:str='Group', nodes_type:str='ShaderNodeTree'):
     for param in sig.parameters.values():
         param = make_param(node_tree, param)
 
-    input_node = Node(node_inputs)
+    input_node = Node(builder, node_inputs)
     outputs = f(*input_node)
 
     def add_output(value, name='value'):

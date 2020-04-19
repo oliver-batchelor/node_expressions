@@ -4,22 +4,22 @@ from numbers import Number
 from cached_property import cached_property
 from typing import List, Callable, Tuple, Any, Union, Optional
 
+from .util import typename, assert_type
 
 def converts_vector(v):
     return isinstance(v, Vector) or isinstance(v, Vector) \
         or isinstance(v, Number) or isinstance(v, tuple)
 
 
-
-
 class Value:
-    def __init__(self, builder, socket=0):
+    def __init__(self, builder, socket):
         super().__init__()
 
         self.builder = builder
         self.socket = socket.socket if isinstance(socket, Value)\
             else socket
-        assert isinstance(self.socket, bpy.types.NodeSocket)
+
+        assert_type(socket, bpy.types.NodeSocket)
     
 
     @property
@@ -48,7 +48,7 @@ class Value:
 
 
 class Float(Value):
-    def __init__(self, builder, socket:int=0):
+    def __init__(self, builder, socket):
         super().__init__(builder, socket)
          
     type = 'Float'
@@ -112,8 +112,8 @@ class Float(Value):
 
 
 class Vector(Value):
-    def __init__(self, builder, socket:int=0):
-        super().__init__(socket)
+    def __init__(self, builder, socket):
+        super().__init__(builder, socket)
          
     type = 'Vector'
 
@@ -199,8 +199,8 @@ class Vector(Value):
 
 
 class Int(Value):
-    def __init__(self, builder, socket:int=0):
-        super().__init__(socket)
+    def __init__(self, builder, socket):
+        super().__init__(builder, socket)
          
     type = 'Int'
 
@@ -213,7 +213,7 @@ class Int(Value):
         return int(v)         
 
     def float(self):
-        return Float(self.socket)
+        return Float(self.builder, self.socket)
 
     @staticmethod
     def connect(builder, v, socket):
@@ -227,8 +227,8 @@ class Int(Value):
 
 
 class Bool(Value):
-    def __init__(self, builder, socket:int=0):
-        super().__init__(socket)
+    def __init__(self, builder, socket):
+        super().__init__(builder, socket)
          
     type = 'Bool'
 
@@ -241,14 +241,14 @@ class Bool(Value):
         return bool(v)  
 
     def float(self):
-        return Float(self.socket)
+        return Float(self.builder, self.socket)
 
     @staticmethod
     def connect(builder, v, socket):
         if isinstance(v, Bool):
             return builder._new_link(v, socket)
         elif isinstance(v, bool):
-            socket.default_value = b
+            socket.default_value = v
             return None
         else:
             raise TypeError("expected bool|Bool, got " + type(v).__name__)     
@@ -256,8 +256,8 @@ class Bool(Value):
 
 
 class String(Value):
-    def __init__(self, builder, socket:int=0):
-        super().__init__(socket)
+    def __init__(self, builder, socket):
+        super().__init__(builder, socket)
          
     @staticmethod
     def annotation():
@@ -279,8 +279,8 @@ class String(Value):
 
 
 class Shader(Value):
-    def __init__(self, builder, socket:int=0):
-        super().__init__(socket)
+    def __init__(self, builder, socket):
+        super().__init__(builder, socket)
          
     @staticmethod
     def annotation():
@@ -294,7 +294,7 @@ class Shader(Value):
             raise TypeError("expected Shader, got " + type(v).__name__) 
 
 class Color(Value):
-    def __init__(self, builder, socket:int=0):
+    def __init__(self, builder, socket):
         super().__init__(builder, socket)
          
     type = 'Color'
