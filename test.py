@@ -4,11 +4,10 @@ from operator import itemgetter
 
 sys.path.append('.')  
 
-# from node.expression import Vector, import_group, import_nodes
+import node.expression as exp
+import node.value as val
 
-from node.group import build_group
-from node.value import Float, Bool, Vector, Color
-from node.expression import NodeSet
+import node
 
 
 def open_nodes(context):
@@ -24,19 +23,31 @@ def open_nodes(context):
         bpy.ops.screen.area_split(direction=direction)
         screen.areas[-1].type = 'NODE_EDITOR'
 
+
+def material_tree(name):
+    material = bpy.data.materials.new(name=name)
+    material.use_nodes = True
+
+    for node in material.node_tree.nodes:
+        material.node_tree.nodes.remove(node)
+
+    return exp.NodeTree(material.node_tree)
+
 if __name__ == "__main__":
 
+
     
-    def foo(nodes : NodeSet, a : Vector, b : Vector, test:Color=(1, 0, 0, 1)):
+    def foo(tree : exp.NodeTree, a : val.Vector, b : val.Vector, test:val.Color=(1, 0, 0, 1)):
+        nodes = tree.nodes
         k = a.x + a.y
 
         c = b.map(nodes.math.sine)
-
-        print(nodes.math.sine)
+        uv = nodes.tex_coord().uv
         
-        return dict(bar = -k // 3, baz = c + c)
+        return dict(bar = -k // 3, baz = c + uv)
 
-    group = build_group(foo)
+    group = node.group.build_group(foo)
+
     open_nodes(bpy.context)
 
 

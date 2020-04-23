@@ -51,12 +51,13 @@ def node_template(node_type, property='input_template'):
         if template is None:
             return inputs
         elif template.type in value_types:
-            k = parameter_name(template.identifier)
+            k = parameter_name(template.name)
             inputs[k] = namespace(
                 index = i,
-                identifier = template.identifier,
+                name = template.name,
                 type = value_types[template.type]
             )
+
 
 
 def node_properties(node_type, common = {}):
@@ -79,7 +80,7 @@ def node_properties(node_type, common = {}):
     return {p.name:p for p in properties}
 
 
-def node_subclasses(base_node):
+def node_subclasses(base_node, types=bpy.types):
     d = {}
     prefix = base_node.__name__
     common_properties = node_properties(base_node)
@@ -93,8 +94,8 @@ def node_subclasses(base_node):
             properties=node_properties(node_type, common_properties),
         )    
 
-    for type_name in dir(bpy.types):
-        t = getattr(bpy.types, type_name)
+    for type_name in dir(types):
+        t = getattr(types, type_name)
         
         has_sockets = hasattr(t, 'input_template') or hasattr(t, 'output_template')
         if issubclass(t, base_node) and has_sockets:
@@ -102,8 +103,6 @@ def node_subclasses(base_node):
               d[desc.name] = desc
 
     return d
-
-
 
 
 class NodeSet:
@@ -191,12 +190,17 @@ class NodeTree:
     def import_node(self, node):
         assert isinstance(node, bpy.types.Node)
         return Node(self, node)
+
+    def group(self, group):
+        assert isinstance(group, type(self.node_tree))
+        return self.nodes.group.set(node_tree=group)
         
     def _new_node(self, node_type, properties):
         node = self.node_tree.nodes.new(node_type)
 
         for k, v in properties.items():
-            assert getattr(node, k) is not None, "node {} has no property {}".format(node.type, k)
+
+            assert hasattr(node, k), "node {} has no property {}".format(node.type, k)
             setattr(node, k, v)
 
         self.created_nodes.append(node)
@@ -220,8 +224,8 @@ def parameter_name(s):
 
     return camel_to_snake(s)
 
-def socket_parameter(socket):
-    name = parameter_name(socket.identifier)
+def socket_parameter(socket, name):
+    name = parameter_name(name)
     value_type=value_types[socket.type]
     
     return inspect.Parameter(name, 
@@ -236,7 +240,7 @@ class Node:
         self._outputs = [value_types[output.type](tree, output) for output in node.outputs 
             if output.type in value_types and output.enabled] 
 
-        self._named = {parameter_name(value.socket.identifier): value for value in self._outputs}
+        self._named = {parameter_name(value.socket.name): value for value in self._outputs}
 
     def __getattr__(self, key):
         return self._named[key]
@@ -248,7 +252,7 @@ class Node:
         return self._outputs.__iter__()
 
     def __repr__(self):
-        return self.node.type + " " + self._named.__repr__()
+        return self._node.type + " " + self._named.__repr__()
 
     def __len__(self):
         return len(self._outputs)
@@ -322,27 +326,48 @@ class NodeBuilder:
 
 
     def __call__(self, *args, **kwargs):
-        try:
-            node = self.tree._new_node(self.node_type, self.properties)
+        node = self.tree._new_node(self.node_type, self.properties)
+        return call_node(self.tree, node, *args, **kwargs)
 
-            sockets = [input for input in node.inputs if input.enabled]
-            signature = inspect.Signature(parameters = [socket_parameter(input) for input in sockets])
+def numbered(name, names):
+    i = 1
+    modified = name
+    while modified in names:
+        modified = name + str(i)
+        i += 1
+    return modified
 
-            args = signature.bind(*args, **kwargs)
-            args.apply_defaults()
+def number_duplicates(names):
+    result = []
+    for name in names:
+        result.append(numbered(name, result))
+    return result
 
-            assert len(args.arguments) == len(sockets)
-            for socket, (param_name, value) in zip(sockets, args.arguments.items()): 
-                try:
-                    self.tree.connect(value, socket)
-                except TypeError as e:
-                    raise TypeError("{}.{} - {}"\
-                        .format(self.node_type,  param_name, e.args[0]))  
 
-            return wrap_node(self.tree, node)
-        
-        except TypeError as e:
-            raise TypeError(e.args[0]) from None
+def call_node(tree, node, *args, **kwargs):
+    try:
+        sockets = [input for input in node.inputs if input.enabled]
+        names = number_duplicates([input.name for input in sockets])
+
+        signature = inspect.Signature(parameters = 
+            [socket_parameter(input, name) for name, input in zip(names, sockets)])
+
+        args = signature.bind(*args, **kwargs)
+        args.apply_defaults()
+
+        assert len(args.arguments) == len(sockets)
+        for socket, (param_name, value) in zip(sockets, args.arguments.items()): 
+            try:
+                tree.connect(value, socket)
+            except TypeError as e:
+                error = e.args[0]
+                raise TypeError("{}.{} - {}".format(typename(node),  param_name, error))  
+
+        return wrap_node(tree, node)
+    
+    except TypeError as e:
+        error = e.args[0]
+        raise TypeError(error) from None
 
 
 

@@ -30,6 +30,7 @@ def make_param(node_tree, param:inspect.Parameter):
     socket_type = socket_types[param.annotation.type]
     socket = node_tree.inputs.new(socket_type, param.name)
 
+
     default = param.default
     if default is not inspect.Parameter.empty:
         socket.default_value = default
@@ -38,8 +39,9 @@ def make_param(node_tree, param:inspect.Parameter):
 
 
 
-def build_group(f:Callable, name:str='Group', nodes_type:str='ShaderNodeTree'):
-    node_tree = bpy.data.node_groups.new(name, nodes_type)
+
+def build_group(f:Callable, name:str='Group', node_type:str='ShaderNodeTree'):
+    node_tree = bpy.data.node_groups.new(name, node_type)
 
     node_inputs = node_tree.nodes.new('NodeGroupInput')
     node_outputs = node_tree.nodes.new('NodeGroupOutput')
@@ -59,6 +61,9 @@ def build_group(f:Callable, name:str='Group', nodes_type:str='ShaderNodeTree'):
     if parameters[0].annotation is NodeSet:
         node_param = [tree.nodes]
         parameters = parameters[1:]
+    elif parameters[0].annotation is NodeTree:
+        node_param = [tree]
+        parameters = parameters[1:]
 
     for param in parameters:
         param = make_param(node_tree, param)
@@ -67,7 +72,10 @@ def build_group(f:Callable, name:str='Group', nodes_type:str='ShaderNodeTree'):
     outputs = f(*node_param, *input_node)
 
     def add_output(value, name='value'):
-        node_tree.outputs.new(socket_types[value.type], name)
+        if not isinstance(value, Value):
+            raise TypeError("output {}, expected Value, got {}".format(name, typename(value)))
+
+        output = node_tree.outputs.new(socket_types[value.type], name)
         tree.connect(value, node_outputs.inputs[name])
 
     if isinstance(outputs, dict):

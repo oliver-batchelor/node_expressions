@@ -36,8 +36,7 @@ class Value:
 
     @property
     def vector_math(self):
-        return self.tree.nodes.vector_math
-    
+        return self.tree.nodes.vector_math  
 
     @property
     def type(self):
@@ -281,10 +280,13 @@ class String(Value):
 class Shader(Value):
     def __init__(self, tree, socket):
         super().__init__(tree, socket)
-         
+
+    type = 'Shader'
+
     @staticmethod
     def annotation():
          return Shader
+
 
     @staticmethod
     def connect(tree, v, socket):
@@ -318,7 +320,7 @@ class Color(Value):
             socket.default_value = (v, v, v, 1)
 
         elif isinstance(v, tuple):
-            if len(v) != 3: raise TypeError("expected literals of length 4")
+            if len(v) != 4: raise TypeError("expected literals of length 4")
             literals = [isinstance(x, Number) for x in v]
             
             if all(literals):
