@@ -62,8 +62,8 @@ def node_template(node_type, property='input_template'):
 
 def node_properties(node_type, common = {}):
     def prop(p):
+        name = parameter_name(p.identifier)
 
-        name = parameter_name(p.name)
         return namespace(
             property_name = p.name,
             name = name,
@@ -105,6 +105,7 @@ def node_subclasses(base_node, types=bpy.types):
     return d
 
 
+
 class NodeSet:
     def __init__(self, tree, descs, name):
         self._tree = tree
@@ -113,17 +114,22 @@ class NodeSet:
         self._descs = {parameter_name(k):desc for k, desc in descs.items()}
         self._builders = {}
 
+    def _make_enumerations(self, node_builder, key):
+        options = node_builder.properties[key].options
+
+        # if the node type has many operations, present them as a Namespace to the user
+        ops = {parameter_name(option):node_builder.set(**{key:option.upper()}) 
+            for option in options}
+
+        return Namespace(ops, name=self._name + "." + key) 
+
+
     def _node_builder(self, k, desc):
         node_builder = NodeBuilder(self._tree, desc)
-        operations = desc.properties['operation'].options \
-                if 'operation' in desc.properties else []
-        
-        if len(operations) > 1:
-            # if the node type has many operations, present them as a Namespace to the user
-            ops = {parameter_name(operation):node_builder.set(operation=operation.upper()) 
-                for operation in operations}
-            node_builder = Namespace(ops, name=self._name + "." + k) 
-            
+        for k in ['operation', 'blend_type']:
+           if k in desc.properties:
+                return self._make_enumerations(node_builder, k)
+
         return node_builder
         
     def __getattr__(self, k):
@@ -137,6 +143,7 @@ class NodeSet:
               
         builder = self._node_builder(k, desc)
         self._builders[k] = builder
+
         return builder
 
     def __str__(self):
@@ -195,11 +202,10 @@ class NodeTree:
         assert isinstance(group, type(self.node_tree))
         return self.nodes.group.set(node_tree=group)
         
-    def _new_node(self, node_type, properties):
-        node = self.node_tree.nodes.new(node_type)
+    def _new_node(self, node_type, bound_properties):
+        node = self.node_tree.nodes.new(node_type)           
 
-        for k, v in properties.items():
-
+        for k, v in bound_properties.items():
             assert hasattr(node, k), "node {} has no property {}".format(node.type, k)
             setattr(node, k, v)
 
@@ -231,7 +237,7 @@ def socket_parameter(socket, name):
     return inspect.Parameter(name, 
         kind=inspect.Parameter.POSITIONAL_OR_KEYWORD, 
         default=value_type.default_value(socket.default_value), 
-        annotation=value_type.annotation())   
+        annotation=value_type)   
 
 class Node:
     def __init__(self, tree, node):
@@ -289,13 +295,13 @@ def comma_sep(xs):
 
 
 class NodeBuilder:
-    def __init__(self, tree, node_desc, properties={}):
+    def __init__(self, tree, node_desc, bound_properties={}):
         self.tree = tree
         self.desc = node_desc
-        self.properties = properties
+        self.bound_properties = bound_properties
 
     def __str__(self):      
-        properties_set = comma_sep(["{}={}".format(k, v) for k, v in self.properties.items()])
+        properties_set = comma_sep(["{}={}".format(k, v) for k, v in self.bound_properties.items()])
         properties = comma_sep(["{}:{}".format(k, p.type) 
             for k, p in self.desc.properties.items() if not p.is_common])
 
@@ -311,22 +317,35 @@ class NodeBuilder:
         return "NodeBuilder({})".format(self.desc.name)
 
     @property
+    def properties(self):
+        return self.desc.properties
+
+    @property
+    def inputs(self):
+        return self.desc.inputs
+
+    @property
+    def outputs(self):
+        return self.desc.outputs
+
+    @property
     def node_type(self):
         return self.desc.type.__name__
 
     def set(self, **properties):
-        updated = self.properties.copy()
+        updated = self.bound_properties.copy()
 
         for k, v in properties.items():
             if k not in self.desc.properties:
                 raise TypeError('node {} has no property {}'.format(self.node_type, k))
 
+            prop = self.desc.properties[k]    
             updated[k] = v
         return NodeBuilder(self.tree, self.desc, updated)
 
 
     def __call__(self, *args, **kwargs):
-        node = self.tree._new_node(self.node_type, self.properties)
+        node = self.tree._new_node(self.node_type, self.bound_properties)
         return call_node(self.tree, node, *args, **kwargs)
 
 def numbered(name, names):
@@ -344,6 +363,9 @@ def number_duplicates(names):
     return result
 
 
+def describe_arg(i, param):
+    return "({}) {}:{} = {}".format(i, param.name, param.annotation.__name__, param.default)
+
 def call_node(tree, node, *args, **kwargs):
     try:
         sockets = [input for input in node.inputs if input.enabled]
@@ -356,12 +378,15 @@ def call_node(tree, node, *args, **kwargs):
         args.apply_defaults()
 
         assert len(args.arguments) == len(sockets)
-        for socket, (param_name, value) in zip(sockets, args.arguments.items()): 
+        for i, socket, (param_name, value) in zip(itertools.count(), sockets, args.arguments.items()): 
             try:
                 tree.connect(value, socket)
             except TypeError as e:
-                error = e.args[0]
-                raise TypeError("{}.{} - {}".format(typename(node),  param_name, error))  
+                error = "argument {} '{}': - {}".format(i + 1,  param_name, e.args[0])
+                arg_help = [describe_arg(i + 1, param) for i, param in enumerate(signature.parameters.values())]
+                func_help = "{}({})".format(typename(node), ", ".join(args.arguments))
+                
+                raise TypeError("{}\n{}\n{}".format(error, func_help, "\n".join(arg_help)))  
 
         return wrap_node(tree, node)
     

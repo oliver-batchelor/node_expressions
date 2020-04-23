@@ -309,7 +309,12 @@ class Color(Value):
     @staticmethod
     def default_value(v):
         assert len(v) == 4
-        return tuple(v)             
+        return tuple(v)          
+
+    @property
+    def mix(self):
+        return self.tree.nodes.mix_rgb
+
 
     @staticmethod
     def connect(tree, v, socket):
@@ -333,6 +338,10 @@ class Color(Value):
     def vector(self):
         return Vector(self.tree, self.socket)
 
+    def float(self):
+        return Float(self.tree, self.socket)
+
+
     @cached_property
     def rgb(self):
         return self.nodes.separate_rgb(self)
@@ -340,6 +349,17 @@ class Color(Value):
     @cached_property
     def hsv(self):
         return self.nodes.separate_hsv(self)
+
+    def __add__(self, x): return self.mix.add(1.0, self, x)
+    def __sub__(self, x): return self.mix.subtract(1.0, self, x)
+    def __mul__(self, x): return self.mix.multiply(1.0, self, x)
+        
+    
+    def __radd__(self, x): return self.mix.add(1.0, x, self)
+    def __rsub__(self, x): return self.mix.subtract(1.0, x, self)
+    def __rmul__(self, x): return self.mix.multiply(1.0, x, self)
+    
+    
 
 
 
