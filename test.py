@@ -5,7 +5,6 @@ from operator import itemgetter
 sys.path.append('.')  
 
 import node.expression as exp
-import node.value as val
 
 import node
 
@@ -33,16 +32,16 @@ def material_tree(name):
 
     return exp.NodeTree(material.node_tree)
 
+
+
 if __name__ == "__main__":
-
-
-    
-    def foo(tree : exp.NodeTree, a : val.Vector, b : val.Vector, test:val.Color=(1, 0, 0, 1)):
-        nodes = tree.nodes
+    from node.shader import math, tex_coord, Vector, Color
+  
+    def foo(a : Vector, b : Vector, test:Color=(1, 0, 0, 1)):
         k = a.x + a.y
 
-        c = b.map(nodes.math.sine)
-        uv = nodes.tex_coord().uv
+        c = b.map(math.sine)
+        uv = tex_coord().uv
         
         return dict(bar = -k // 3, baz = c + uv)
 

@@ -5,10 +5,8 @@ import bpy
 import inspect
 from typing import List, Callable, Tuple, Any, Union, Optional
 
-from .value import value_types, Value
 from .util import typename, assert_type
-from .expression import NodeTree, NodeSet
-
+from .expression import NodeContext, Node
 
 
 socket_types = {
@@ -23,13 +21,15 @@ socket_types = {
 
     
 
-def make_param(node_tree, param:inspect.Parameter):
-    if not issubclass(param.annotation, Value):
-        raise TypeError("unsupported input type: " + str(param.annotation.type))
+def make_param(context, node_tree, param:inspect.Parameter):
+    if param.annotation is inspect.Parameter.empty:
+        raise TypeError("{}: required annotation for input parameter")
+
+    if param.annotation not in context.value_types.values():
+        raise TypeError("{}: unsupported input type '{}'".format(param.name, param.annotation))
 
     socket_type = socket_types[param.annotation.type]
     socket = node_tree.inputs.new(socket_type, param.name)
-
 
     default = param.default
     if default is not inspect.Parameter.empty:
@@ -37,7 +37,12 @@ def make_param(node_tree, param:inspect.Parameter):
 
     return socket
 
-
+def lazy_group(f:Callable, name, node_type:str='ShaderNodeTree'):
+    if name in bpy.data.node_groups:
+        return bpy.data.node_groups[name]
+    else:
+        return build_group(f, name, node_type)
+    
 
 
 def build_group(f:Callable, name:str='Group', node_type:str='ShaderNodeTree'):
@@ -46,45 +51,39 @@ def build_group(f:Callable, name:str='Group', node_type:str='ShaderNodeTree'):
     node_inputs = node_tree.nodes.new('NodeGroupInput')
     node_outputs = node_tree.nodes.new('NodeGroupOutput')
 
-    tree = NodeTree(node_tree)
+    context = NodeContext(node_tree)
 
     sig = inspect.signature(f)
-    if len(sig.parameters) == 0:
-        raise ValueError("can't build group with no parameters")
-
-    parameters = list(sig.parameters.values())
-    for param in parameters: 
+    for param in sig.parameters.values(): 
         if param.annotation is None:
             raise TypeError("expected type annotation on input parameter: " + str(param.name))
 
-    node_param = [] 
-    if parameters[0].annotation is NodeSet:
-        node_param = [tree.nodes]
-        parameters = parameters[1:]
-    elif parameters[0].annotation is NodeTree:
-        node_param = [tree]
-        parameters = parameters[1:]
+    for param in sig.parameters.values():
+        make_param(context, node_tree, param)
 
-    for param in parameters:
-        param = make_param(node_tree, param)
+    input_node = Node(context, node_inputs)
 
-    input_node = tree.import_node(node_inputs)
-    outputs = f(*node_param, *input_node)
+    with(context):
+        outputs = f(*input_node)
 
-    def add_output(value, name='value'):
-        if not isinstance(value, Value):
-            raise TypeError("output {}, expected Value, got {}".format(name, typename(value)))
+        def add_output(value, name=None):
+            if type(value) not in context.value_types.values():
+                raise TypeError("output {}:, expected Value, got {}".format(name, typename(value)))
 
-        output = node_tree.outputs.new(socket_types[value.type], name)
-        tree.connect(value, node_outputs.inputs[name])
+            name = name or typename(value)
+            output = node_tree.outputs.new(socket_types[value.type], name)
+            value.connect(context, value, node_outputs.inputs[name])
 
-    if isinstance(outputs, dict):
-        for k, value in outputs.items():
-            add_output(value, k)
-    elif isinstance(outputs, Value):
-        add_output(outputs)
-    else:
-        raise TypeError("build_group: invalid output type")
+        if isinstance(outputs, dict):
+            for k, value in outputs.items():
+                add_output(value, k)
+        elif isinstance(outputs, tuple):
+            for i, value in enumerate(outputs):
+                add_output(value, "output_{}".format(i + 1))
+        elif isinstance(outputs, Value):
+            add_output(outputs, "output")
+        else:
+            raise TypeError("build_group: invalid output type, expected (dict|Value|tuple), got " + typename(outputs))
 
     return node_tree
  
