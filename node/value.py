@@ -5,7 +5,7 @@ from cached_property import cached_property
 from typing import List, Callable, Tuple, Any, Union, Optional
 
 from .expression import node_context
-from .util import typename, assert_type, staticproperty
+from .util import typename, assert_type, staticproperty, classproperty
 
 import math
 
@@ -61,6 +61,12 @@ class Float(Value):
     @staticmethod
     def default_value(v):
         return float(v)
+
+    @classmethod
+    def constant(cls, x):
+        value = cls.nodes.value()
+        value.socket.default_value = x
+        return value
 
     @staticmethod
     def connect(context, v, socket):
@@ -293,9 +299,9 @@ class Color(Value):
         else:
             raise TypeError("expected tuple[scalar x4]|Color, got " + type(v).__name__)
 
-    @staticproperty
-    def mix():
-        return Value.nodes.mix
+    @classproperty
+    def mix(cls):
+        return cls.nodes.mix_rgb
  
     def __add__(self, x): return self.mix.add(1.0, self, x)
     def __sub__(self, x): return self.mix.subtract(1.0, self, x)

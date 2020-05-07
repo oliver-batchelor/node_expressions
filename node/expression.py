@@ -93,7 +93,7 @@ def make_submodule(module, name):
     return submodule
 
 def add_node_module(module, node_type):
-    tree_type = node_tree_types[node_type]
+    tree_type = node_tree_descs[node_type]
     
     def make_enumerations(node_builder, key):
         options = node_builder.properties[key].options
@@ -119,10 +119,11 @@ def add_node_module(module, node_type):
 
   
 
-class TreeType:
-    def __init__(self, type, module):
+class TreeDesc:
+    def __init__(self, type, module, tree_type):
         self.type = type
         self.module = module
+        self.tree_type = tree_type
 
     @cached_property
     def node_descriptions(self):
@@ -137,9 +138,9 @@ class TreeType:
         return importlib.import_module(self.module)
         
 
-node_tree_types = dict(
-    SHADER=TreeType(bpy.types.ShaderNode, 'node.shader'),   
-    COMPOSITOR=TreeType(bpy.types.CompositorNode, 'node.compositor'),
+node_tree_descs = dict(
+    SHADER=TreeDesc(bpy.types.ShaderNode, 'node.shader', 'ShaderNodeTree'),   
+    COMPOSITOR=TreeDesc(bpy.types.CompositorNode, 'node.compositor', 'CompositorNodeTree'),
 )
 
 
@@ -150,7 +151,7 @@ class NodeContext:
         assert isinstance(node_tree, bpy.types.NodeTree)
         self.node_tree = node_tree
         self.created_nodes = []     
-        self.tree_type = node_tree_types[node_tree.type]
+        self.desc = node_tree_descs[node_tree.type]
 
         self.previous = None
 
@@ -175,7 +176,7 @@ class NodeContext:
 
     @property
     def nodes(self):
-        return self.tree_type.nodes
+        return self.desc.nodes
 
     @property
     def value_types(self):
@@ -203,8 +204,6 @@ class NodeContext:
 
     
 
-
-
 def node_context():
     return NodeContext.active()
 
@@ -213,9 +212,13 @@ def import_group(group):
     return node_context().import_group(group)
 
 
-def activate(self, node):
+def activate_node(node):
     assert isinstance(node, Node)
     node_context().node_tree.nodes.active = node._node
+
+def node_tree(tree):
+    return NodeContext(tree)
+
 
 
 

@@ -6,7 +6,7 @@ import inspect
 from typing import List, Callable, Tuple, Any, Union, Optional
 
 from .util import typename, assert_type
-from .expression import NodeContext, Node
+from .expression import NodeContext, Node, import_group
 
 
 socket_types = {
@@ -37,15 +37,10 @@ def make_param(context, node_tree, param:inspect.Parameter):
 
     return socket
 
-def lazy_group(f:Callable, name, node_type:str='ShaderNodeTree'):
-    if name in bpy.data.node_groups:
-        return bpy.data.node_groups[name]
-    else:
-        return build_group(f, name, node_type)
+
+
     
-
-
-def build_group(f:Callable, name:str='Group', node_type:str='ShaderNodeTree'):
+def build(f:Callable, name:str='Group', node_type:str='ShaderNodeTree'):
     node_tree = bpy.data.node_groups.new(name, node_type)
 
     node_inputs = node_tree.nodes.new('NodeGroupInput')
@@ -83,7 +78,23 @@ def build_group(f:Callable, name:str='Group', node_type:str='ShaderNodeTree'):
         elif isinstance(outputs, Value):
             add_output(outputs, "output")
         else:
-            raise TypeError("build_group: invalid output type, expected (dict|Value|tuple), got " + typename(outputs))
+            raise TypeError("group.build: invalid output type, expected (dict|Value|tuple), got " + typename(outputs))
 
     return node_tree
  
+
+def function(f:Callable, name:str='Group', node_type:str='ShaderNodeTree'):
+     group = build_group(f, name, node_type)
+     return import_group(group)
+
+
+def lazy(f:Callable, name, node_type:str='ShaderNodeTree'):
+    if name in bpy.data.node_groups:
+        return bpy.data.node_groups[name]
+    else:
+        return build(f, name, node_type)
+
+def lazy_function(f:Callable, name, node_type:str='ShaderNodeTree'):
+    group = lazy(f, name, node_type)
+    return import_group(group)
+
