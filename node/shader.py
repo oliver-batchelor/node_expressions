@@ -26,7 +26,11 @@ class Float(value.Float):
     
 class Vector(value.Vector):
     def __init__(self, socket):
-        super().__init__(socket)
+        if isinstance(socket, tuple):
+            assert len(socket) == 3
+            super().__init__(self.combine(*socket))
+        else:
+            super().__init__(socket)
 
     @classproperty
     def vector_math(cls):
@@ -48,9 +52,9 @@ class Vector(value.Vector):
         else:
             raise TypeError("expected tuple[scalar, scalar, scalar]|Vector, got " + type(v).__name__)
 
-    @staticmethod
-    def combine(x, y, z):
-        return self.nodes.combine_xyz(x, y, z)
+    @classmethod
+    def combine(cls, x, y, z):
+        return cls.nodes.combine_xyz(x, y, z)
 
     @cached_property
     def xyz(self):
@@ -126,7 +130,12 @@ class Vector(value.Vector):
 
 class Color(value.Color):
     def __init__(self, socket):
-        super().__init__(socket)
+        if isinstance(socket, tuple):
+            assert len(socket) == 3            
+            super().__init__(self.combine_rgb(*socket))
+        else:
+            super().__init__(socket)
+
 
 
     def vector(self):
@@ -135,9 +144,9 @@ class Color(value.Color):
     def float(self):
         return Float(self.socket)
 
-    @staticmethod
-    def combine_rgb(r, g, b):
-        return self.nodes.combine_rgb(r, g, b)
+    @classmethod
+    def combine_rgb(cls, r, g, b):
+        return cls.nodes.combine_rgb(r, g, b)
 
 
     @cached_property

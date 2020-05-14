@@ -23,7 +23,7 @@ class Value:
         self.socket = socket.socket if isinstance(socket, Value)\
             else socket
 
-        assert_type(socket, bpy.types.NodeSocket)
+        assert_type(self.socket, bpy.types.NodeSocket)
     
 
     @property
@@ -50,6 +50,9 @@ class Value:
 
 class Float(Value):
     def __init__(self, socket):
+        if isinstance(socket, Number):
+            socket = self.constant(socket)
+
         super().__init__(socket)
          
     type = 'Float'
@@ -295,7 +298,8 @@ class Color(Value):
         elif isinstance(v, tuple):
             if len(v) != 4 or not all([isinstance(x, Number) for x in v]): 
                 raise TypeError("expected literals of length 4")
-                socket.default_value = v            
+                
+            socket.default_value = v            
         else:
             raise TypeError("expected tuple[scalar x4]|Color, got " + type(v).__name__)
 

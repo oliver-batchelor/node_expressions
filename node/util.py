@@ -27,13 +27,13 @@ def attribute_error(name, k, keys):
 
 
 class Namespace:
-    def __init__(self, d, name=None):
-        self._name = name or "Namespace"
+    def __init__(self, name, d):
+        self._name = name 
         self._values = d
 
     def __str__(self):
         attrs = ["{}:{}".format(k, v) for k, v in self._values.items()]
-        return "{}: <{}>".format(self._name, ', '.join(attrs))
+        return "{}<{}>".format(self._name, ', '.join(attrs))
 
     def __repr__(self):
         return self.__str__()
@@ -48,5 +48,5 @@ class Namespace:
     def keys(self):
         return self._values.keys()
        
-def namespace(**d):
-    return Namespace(d)
+def namespace(_name, **d):
+    return Namespace(_name, d)

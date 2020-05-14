@@ -26,7 +26,10 @@ class Float(value.Float):
 class Vector(value.Vector):
     def __init__(self, socket):
         super().__init__(socket)
+     
 
+    def color(self):
+        return Color(self.socket)
 
     @staticmethod
     def connect(context, v, socket):
@@ -43,9 +46,6 @@ class Vector(value.Vector):
                 context._new_link(context.nodes.combine_xyz(*v), socket)
         else:
             raise TypeError("expected tuple[scalar, scalar, scalar]|Vector, got " + type(v).__name__)
-   
-    def color(self):
-        return Color(self.socket)
 
 
 
@@ -62,48 +62,28 @@ class Color(value.Color):
         return Float(self.socket)
 
     @staticmethod
-    def combine_rgba(r, g, b, a=1):
-        return self.nodes.combine_rgb(r, g, b, a)
-
+    def combine(r, g, b, a=1):
+        return self.nodes.compose(x, y, z)
 
     @cached_property
     def rgba(self):
-        return self.nodes.separate_rgb(self)
+        return self.nodes.decompose(self)   
 
-
-    @property 
+    @property
     def r(self):
-        return self.rgb.r
+        return self.rgba.red
 
-    @property 
+    @property
     def g(self):
-        return self.rgb.g
+        return self.rgba.green
 
-    @property 
+    @property
     def b(self):
-        return self.rgb.b
+        return self.rgba.blue
 
-    @property 
+    @property
     def a(self):
-        return self.rgb.a
-
-    @cached_property
-    def hsva(self):
-        return self.nodes.separate_hsv(self)
-
-    @property 
-    def h(self):
-        return self.hsva.h
-
-    @property 
-    def s(self):
-        return self.hsva.s
-
-    @property 
-    def v(self):
-        return self.hsva.v
-
-
+        return self.rgba.alpha
 
 class Int(value.Int):
     def __init__(self, socket):
@@ -142,7 +122,7 @@ _value_types = {
 }
 
 
-add_node_module(sys.modules[__name__], 'COMPOSITOR')
+add_node_module(sys.modules[__name__], 'TEXTURE')
 
 
 

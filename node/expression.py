@@ -33,7 +33,7 @@ def node_template(node_type, property='input_template'):
             return inputs
         elif template.type in value_types:
             k = parameter_name(template.name)
-            inputs[k] = namespace(
+            inputs[k] = namespace(property,
                 index = i,
                 name = template.name,
                 type = template.type
@@ -45,7 +45,7 @@ def node_properties(node_type, common = {}):
     def prop(p):
         name = parameter_name(p.identifier)
 
-        return namespace(
+        return namespace("property",
             property_name = p.name,
             name = name,
             type = p.type,
@@ -67,7 +67,7 @@ def node_subclasses(base_node, types=bpy.types):
     common_properties = node_properties(base_node)
 
     def node_desc(node_type):
-        return namespace(
+        return namespace("node description",
             name = type_name[len(prefix):],
             type=node_type, 
             inputs = node_template(node_type, 'input_template'), 
@@ -141,6 +141,7 @@ class TreeDesc:
 node_tree_descs = dict(
     SHADER=TreeDesc(bpy.types.ShaderNode, 'node.shader', 'ShaderNodeTree'),   
     COMPOSITOR=TreeDesc(bpy.types.CompositorNode, 'node.compositor', 'CompositorNodeTree'),
+    TEXTURE=TreeDesc(bpy.types.TextureNode, 'node.texture', 'TextureNodeTree'),
 )
 
 
@@ -166,7 +167,7 @@ class NodeContext:
     @staticmethod
     def active():
         if NodeContext.current is None:
-            raise AttributeError("no active node context, use 'with(NodeContext(node_tree))' or create a node group")
+            raise AttributeError("no active node context, use 'with(node_tree(mat.node_tree))' or create a node group")
         
         return NodeContext.current
 
@@ -202,24 +203,28 @@ class NodeContext:
     def import_node(self, node):
         return Node(self, node)
 
-    
+    def remove(self, node):
+        assert isinstance(node, Node)
+        self.node_tree.nodes.remove(node._node)
+
+    def activate(self, node):
+        assert isinstance(node, Node)
+        self.node_tree.nodes.active = node._node
 
 def node_context():
     return NodeContext.active()
-
     
 def import_group(group):
     return node_context().import_group(group)
 
-
 def activate_node(node):
-    assert isinstance(node, Node)
-    node_context().node_tree.nodes.active = node._node
+    return node_context().activate(node)
 
 def node_tree(tree):
     return NodeContext(tree)
 
-
+def remove_node(node):
+    return node_context().remove(node)
 
 
 def camel_to_snake(name):
@@ -247,6 +252,7 @@ def socket_parameter(context, socket, name):
 
 class Node:
     def __init__(self, context, node):
+        assert isinstance(node, bpy.types.Node)
         self._node = node
 
         value_types = context.value_types
@@ -256,6 +262,9 @@ class Node:
 
         self._named = {parameter_name(value.socket.name): value for value in self._outputs}
 
+
+    def mute(self, on):
+        self._node.mute = on
 
     def items(self):
         return self._named.items()
@@ -312,9 +321,10 @@ class NodeBuilder:
     def __str__(self):      
         properties_set = comma_sep(["{}={}".format(k, v) for k, v in self.bound_properties.items()])
 
-        inputs = comma_sep(["{}:{}".format(k, inp.type.__name__) 
+        inputs = comma_sep(["{}:{}".format(k, inp.type) 
             for k, inp in self.desc.inputs.items()])
-        outputs = comma_sep(["{}:{}".format(k, output.type.__name__) 
+
+        outputs = comma_sep(["{}:{}".format(k, output.type) 
             for k, output in self.desc.outputs.items()])
 
         return "{}({}):\n properties({})\n inputs({})\n outputs({})\n"\
