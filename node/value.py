@@ -5,15 +5,10 @@ from cached_property import cached_property
 from typing import List, Callable, Tuple, Any, Union, Optional
 
 from .expression import node_context
-from .util import typename, assert_type, staticproperty, classproperty
+from .util import typename, assert_type, staticproperty, classproperty, Namespace
 
 import math
 
-
-
-def converts_vector(v):
-    return isinstance(v, Vector) or isinstance(v, Vector) \
-        or isinstance(v, Number) or isinstance(v, tuple)
 
 
 class Value:
@@ -33,7 +28,8 @@ class Value:
     @staticproperty
     def nodes():
         return node_context().nodes
-    
+
+   
     @staticproperty
     def math():
         return Value.nodes.math
@@ -80,24 +76,44 @@ class Float(Value):
             return None
         else:
             raise TypeError("expected scalar (float|Float), got " + type(v).__name__)
+    
+    # Allow Vector/Color to handle operators as higher precedence
+    def operator(self, name, x):
+        if hasattr(type(x), name):
+            f = getattr(type(x), name)
+            return f(self, x)
+        else:
+            f = getattr(self, name)
+            return f(x)
 
-    def __add__(self, x): return self.math.add(self, x)
-    def __sub__(self, x): return self.math.subtract(self, x)
-    def __mul__(self, x): return self.math.multiply(self, x)
-    def __truediv__(self, x): return self.math.divide(self, x)
-    def __floordiv__(self, x): return self.math.floor(self.math.divide(self, x))
+
+
+    def add(self, x): return Float.math.add(self, x)
+    def sub(self, x): return Float.math.subtract(self, x)
+    def mul(self, x): return Float.math.multiply(self, x)
+
+    def __add__(self, x): return self.operator('add', x)
+    def __sub__(self, x): return self.operator('sub', x)
+    def __mul__(self, x): return self.operator('mul', x)
+
+    def div(self, x): return self.math.divide(self, x)
+
+    def __truediv__(self, x):  return self.div(x)
+    def __floordiv__(self, x): return self.div(x).floor()
 
     def mod(self, x): return self.math.modulo(self, x)
     def pow(self, x): return self.math.power(self, x)
 
-    def __mod__(self, x): return self.math.modulo(self, x)
-    def __pow__(self, x): return self.math.power(self, x)
+    def __mod__(self, x): return self.mod(x)
+    def __pow__(self, x): return self.pow(x)
     
-    def __radd__(self, x): return self.math.add(x, self)
-    def __rsub__(self, x): return self.math.subtract(x, self)
-    def __rmul__(self, x): return self.math.multiply(x, self)
-    def __rtruediv__(self, x): return self.math.divide(x, self)
-    def __rfloordiv__(self, x): return self.math.divide(x, self).floor()
+    def __radd__(self, x): return Float.add(x, self)
+    def __rsub__(self, x): return Float.sub(x, self)
+    def __rmul__(self, x): return Float.mul(x, self)
+
+    def __rtruediv__(self, x): return Float.div(x, self)
+    def __rfloordiv__(self, x): return Float.div(x, self).floor()
+    
     def __rmod__(self, x): return self.math.mod(x, self)
     def __rpow__(self, x): return self.math.power(x, self)
   
@@ -306,15 +322,19 @@ class Color(Value):
     @classproperty
     def mix(cls):
         return cls.nodes.mix_rgb
+
+    def add(self, x): return self.mix.add(1.0, self, x)
+    def sub(self, x): return self.mix.subtract(1.0, self, x)
+    def mul(self, x): return self.mix.multiply(1.0, self, x)       
  
-    def __add__(self, x): return self.mix.add(1.0, self, x)
-    def __sub__(self, x): return self.mix.subtract(1.0, self, x)
-    def __mul__(self, x): return self.mix.multiply(1.0, self, x)
+    def __add__(self, x): return self.add(x)
+    def __sub__(self, x): return self.sub(x)
+    def __mul__(self, x): return self.mul(x)
         
     
-    def __radd__(self, x): return self.mix.add(1.0, x, self)
-    def __rsub__(self, x): return self.mix.subtract(1.0, x, self)
-    def __rmul__(self, x): return self.mix.multiply(1.0, x, self)
+    def __radd__(self, x): return Color.add(x, self)
+    def __rsub__(self, x): return Color.sub(x, self)
+    def __rmul__(self, x): return Color.mul(x, self)
 
     
     

@@ -1,13 +1,16 @@
+import bpy
+import idprop
+
 import sys
 from node import expression, value
 import node
 
-from .util import staticproperty, classproperty
+from .util import staticproperty, classproperty, Namespace
 from cached_property import cached_property
 from typing import Callable
 from numbers import Number
 
-
+import node.properties as properties
 
 
 class Float(value.Float):
@@ -84,25 +87,32 @@ class Vector(value.Vector):
     def map2(self, f, other, *args):
         return self.nodes.combine_xyz(*[f(x, y *args) for x, y in zip(self.xyz, self.nodes.separate_xyz(other))])
 
+    def add(self, x): return vector_math.add(self, x)
+    def sub(self, x): return vector_math.subtract(self, x)
+    def mul(self, x): return vector_math.multiply(self, x)
+    def div(self, x): return vector_math.divide(self, x)
 
-    def __add__(self, x): return self.vector_math.add(self, x)
-    def __sub__(self, x): return self.vector_math.subtract(self, x)
-    def __mul__(self, x): return self.vector_math.multiply(self, x)
-    def __truediv__(self, x): return self.vector_math.divide(self, x)
-    def __floordiv__(self, x): return self.vector_math.divide(self, x).floor()
+
+    def __add__(self, x): return self.add(x)
+    def __sub__(self, x): return self.sub(x)
+    def __mul__(self, x): return self.mul(x)
+
+    def __truediv__(self, x): return self.div(x)
+    def __floordiv__(self, x): return self.div(x).floor()
 
 
     def mod(self, x): return self.vector_math.modulo(self, x)
     def pow(self, x): return self.map(self.math.pow, self, x)
 
-    def __mod__(self, x): return self.map(self.math.modulo, self, x)
-    def __pow__(self, x): return self.map(self.math.pow, self, x)
+    def __mod__(self, x): return self.mod(x)
+    def __pow__(self, x): return self.pow(x)
     
-    def __radd__(self, x): return self.vector_math.add(x, self)
-    def __rsub__(self, x): return self.vector_math.subtract(x, self)
-    def __rmul__(self, x): return self.vector_math.multiply(x, self)
-    def __rtruediv__(self, x): return self.vector_math.divide(x, self)
-    def __rfloordiv__(self, x): return self.vector_math.divide(x, self).floor()
+    def __radd__(self, x): return Vector.add(x, self)
+    def __rsub__(self, x): return Vector.sub(x, self)
+    def __rmul__(self, x): return Vector.mul(x, self)
+
+    def __rtruediv__(self, x): return Vector.div(x, self)
+    def __rfloordiv__(self, x): return Vector.div(x, self).floor()
 
     def abs(self): return self.vector_math.absolute(self)
      
@@ -222,4 +232,42 @@ _value_types = {
 }
 
 
-expression.add_node_module(sys.modules[__name__], 'SHADER')
+module = sys.modules[__name__]
+expression.add_node_module(module, 'SHADER')
+
+
+def float_driver(obj, prop_name):
+    v = obj[prop_name]
+
+    node_value = module.value()
+    fcurve = node_value.socket.driver_add("default_value")
+    driver = fcurve.driver
+
+    driver.type = 'AVERAGE'
+    var = driver.variables.new()
+    var.targets[0].id = obj
+    var.targets[0].data_path = '["{}"]'.format(prop_name)
+
+    return node_value
+    
+
+def property_drivers(obj):
+    assert isinstance(obj, bpy.types.bpy_struct)
+    drivers = {}
+
+    rna_properties = {prop.identifier for prop in obj.bl_rna.properties if prop.is_runtime}
+    rna_ui = obj.get('_RNA_UI', {})
+
+    for k, v in obj.items():
+        if k == '_RNA_UI' or k in rna_properties:
+            continue
+        prop = rna_ui[k]
+
+        if isinstance(v, Number):
+            drivers[k] = float_driver(obj, k)
+
+    return Namespace("{} drivers".format(obj.name), drivers)
+
+
+        
+      

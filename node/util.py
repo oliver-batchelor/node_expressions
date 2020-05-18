@@ -21,7 +21,7 @@ def assert_type(x, expected):
 def attribute_error(name, k, keys):
     keys = list(keys)
     nearest, score = process.extractOne(k, keys)
-    suggest = "" if score < 50 else ", did you mean '{}'?".format(nearest)
+    suggest = "" if score < 50 else "did you mean '{}'?".format(nearest)
     return AttributeError("{} has no attribute '{}', {}\noptions: {}"
         .format(name, k, suggest, keys))
 
@@ -39,10 +39,10 @@ class Namespace:
         return self.__str__()
 
     def __getattr__(self, attr):
-        value = self._values.get(attr)
-        if value is None:
+        if attr not in self._values:
             raise attribute_error(self._name, attr, self.keys())
-            
+
+        value = self._values.get(attr)           
         return value
 
     def keys(self):

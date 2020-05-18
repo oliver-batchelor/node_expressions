@@ -227,6 +227,11 @@ def remove_node(node):
     return node_context().remove(node)
 
 
+
+
+
+    
+
 def camel_to_snake(name):
   name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
   return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
@@ -363,13 +368,13 @@ class NodeBuilder:
 
 
     def __call__(self, *args, **kwargs):
-        # try:
+        try:
             context = node_context()
             node = context._new_node(self.node_type, self.bound_properties)
             return call_node(context, parameter_name(self.desc.name), node, *args, **kwargs)
-        # except TypeError as e:
-        #     error = e.args[0]
-        #     raise TypeError(error) from None
+        except TypeError as e:
+            error = e.args[0]
+            raise TypeError(error) from None
         
 
 def numbered(name, names):

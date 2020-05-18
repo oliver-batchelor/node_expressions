@@ -84,7 +84,7 @@ def build(f:Callable, name:str='Group', node_type:str='ShaderNodeTree'):
  
 
 def function(f:Callable, name:str='Group', node_type:str='ShaderNodeTree'):
-     group = build_group(f, name, node_type)
+     group = build(f, name, node_type)
      return import_group(group)
 
 
