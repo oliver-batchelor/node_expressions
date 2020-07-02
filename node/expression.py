@@ -140,7 +140,7 @@ class TreeDesc:
 
 node_tree_descs = dict(
     SHADER=TreeDesc(bpy.types.ShaderNode, 'node.shader', 'ShaderNodeTree'),   
-    COMPOSITOR=TreeDesc(bpy.types.CompositorNode, 'node.compositor', 'CompositorNodeTree'),
+    COMPOSITING=TreeDesc(bpy.types.CompositorNode, 'node.compositor', 'CompositorNodeTree'),
     TEXTURE=TreeDesc(bpy.types.TextureNode, 'node.texture', 'TextureNodeTree'),
 )
 

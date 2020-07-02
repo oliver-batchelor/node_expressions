@@ -142,7 +142,7 @@ _value_types = {
 }
 
 
-add_node_module(sys.modules[__name__], 'COMPOSITOR')
+add_node_module(sys.modules[__name__], 'COMPOSITING')
 
 
 

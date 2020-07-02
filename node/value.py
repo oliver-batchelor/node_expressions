@@ -96,13 +96,13 @@ class Float(Value):
     def __sub__(self, x): return self.operator('sub', x)
     def __mul__(self, x): return self.operator('mul', x)
 
-    def div(self, x): return self.math.divide(self, x)
+    def div(self, x): return Float.math.divide(self, x)
 
     def __truediv__(self, x):  return self.div(x)
     def __floordiv__(self, x): return self.div(x).floor()
 
-    def mod(self, x): return self.math.modulo(self, x)
-    def pow(self, x): return self.math.power(self, x)
+    def mod(self, x): return Float.math.modulo(self, x)
+    def pow(self, x): return Float.math.power(self, x)
 
     def __mod__(self, x): return self.mod(x)
     def __pow__(self, x): return self.pow(x)
@@ -114,51 +114,51 @@ class Float(Value):
     def __rtruediv__(self, x): return Float.div(x, self)
     def __rfloordiv__(self, x): return Float.div(x, self).floor()
     
-    def __rmod__(self, x): return self.math.mod(x, self)
-    def __rpow__(self, x): return self.math.power(x, self)
+    def __rmod__(self, x): return Float.math.mod(x, self)
+    def __rpow__(self, x): return Float.math.power(x, self)
   
-    def __neg__(self): return self.math.multiply(self, -1)
+    def __neg__(self): return Float.math.multiply(self, -1)
 
-    def abs(self): return self.math.absolute(self)
-    def __abs__(self): return self.math.absolute(self)
+    def abs(self): return Float.math.absolute(self)
+    def __abs__(self): return Float.math.absolute(self)
     def __invert__(self): return 1 / self
 
-    def round(self): return self.math.round(self)
-    def trunc(self): return self.math.trunc(self)
-    def floor(self): return self.math.floor(self)
-    def ceil(self): return self.math.ceil(self)
+    def round(self): return Float.math.round(self)
+    def trunc(self): return Float.math.trunc(self)
+    def floor(self): return Float.math.floor(self)
+    def ceil(self): return Float.math.ceil(self)
 
-    def frac(self): return self.math.fraction(self)
+    def frac(self): return Float.math.fraction(self)
 
-    def __lt__(self, x): return self.math.less_than(self, x)
-    def __gt__(self, x): return self.math.greater_than(self,x)
+    def __lt__(self, x): return Float.math.less_than(self, x)
+    def __gt__(self, x): return Float.math.greater_than(self,x)
 
 
-    def log(self, base=10): return self.math.logarithm(self, base)
-    def ln(self, base=math.e): return self.math.logarithm(self, base)
+    def log(self, base=10): return Float.math.logarithm(self, base)
+    def ln(self, base=math.e): return Float.math.logarithm(self, base)
 
-    def pow(self, x): return self.math.power(self, x)
-    def sqrt(self): return self.math.square_root(self)
-    def inv_sqrt(self): return self.math.inverse_square_root(self)
+    def pow(self, x): return Float.math.power(self, x)
+    def sqrt(self): return Float.math.square_root(self)
+    def inv_sqrt(self): return Float.math.inverse_square_root(self)
 
-    def abs(self): return self.math.absolute(self)
-    def exp(self): return self.math.exponent(self)
+    def abs(self): return Float.math.absolute(self)
+    def exp(self): return Float.math.exponent(self)
 
-    def sin(self): return self.math.sine(self)
-    def cos(self): return self.math.cosine(self)
-    def tan(self): return self.math.tangent(self)
+    def sin(self): return Float.math.sine(self)
+    def cos(self): return Float.math.cosine(self)
+    def tan(self): return Float.math.tangent(self)
 
-    def asin(self): return self.math.arcsine(self)
-    def acos(self): return self.math.arccosine(self)
-    def atan(self): return self.math.arctangent(self)
-    def atan2(self, x): return self.math.arctan2(self, x)
+    def asin(self): return Float.math.arcsine(self)
+    def acos(self): return Float.math.arccosine(self)
+    def atan(self): return Float.math.arctangent(self)
+    def atan2(self, x): return Float.math.arctan2(self, x)
 
-    def sinh(self): return self.math.hyperbolic_sine(self)
-    def cosh(self): return self.math.hyperbolic_cosine(self)
-    def tanh(self): return self.math.hyperbolic_tangent(self)
+    def sinh(self): return Float.math.hyperbolic_sine(self)
+    def cosh(self): return Float.math.hyperbolic_cosine(self)
+    def tanh(self): return Float.math.hyperbolic_tangent(self)
 
-    def min(self, other): return self.math.minimum(self, other)
-    def max(self, other): return self.math.maximum(self, other)
+    def min(self, other): return Float.math.minimum(self, other)
+    def max(self, other): return Float.math.maximum(self, other)
 
     def clamp(self, min=0.0, max=1.0):
         return self.nodes.clamp(self, min, max)

@@ -101,7 +101,7 @@ class Vector(value.Vector):
     def __floordiv__(self, x): return self.div(x).floor()
 
 
-    def mod(self, x): return self.vector_math.modulo(self, x)
+    def mod(self, x): return vector_math.modulo(self, x)
     def pow(self, x): return self.map(self.math.pow, self, x)
 
     def __mod__(self, x): return self.mod(x)
@@ -114,26 +114,26 @@ class Vector(value.Vector):
     def __rtruediv__(self, x): return Vector.div(x, self)
     def __rfloordiv__(self, x): return Vector.div(x, self).floor()
 
-    def abs(self): return self.vector_math.absolute(self)
+    def abs(self): return vector_math.absolute(self)
      
-    def __neg__(self): return self.vector_math.multiply(self, -1)
-    def __abs__(self): return self.vector_math.absolute(self)
+    def __neg__(self): return vector_math.multiply(self, -1)
+    def __abs__(self): return vector_math.absolute(self)
     def __invert__(self): return 1 / self
 
     def round(self): return self.map(self.math.round)
     def trunc(self): return self.map(self.math.truncate)
-    def floor(self): return self.vector_math.floor(self)
-    def ceil(self): return self.vector_math.ceil(self)
+    def floor(self): return vector_math.floor(self)
+    def ceil(self): return vector_math.ceil(self)
 
-    def snap(self, x): return self.vector_math.snap(self, x)
-    def frac(self): return self.vector_math.fraction(self)
+    def snap(self, x): return vector_math.snap(self, x)
+    def frac(self): return vector_math.fraction(self)
 
-    def min(self, other): return self.vector_math.minimum(self, other)
-    def max(self, other): return self.vector_math.maximum(self, other)
+    def min(self, other): return vector_math.minimum(self, other)
+    def max(self, other): return vector_math.maximum(self, other)
 
-    def dot(self, other): return self.vector_math.dot_product(self, other)
-    def proj(self, other): return self.vector_math.project(self, other)
-    def cross(self, other): return self.vector_math.cross_product(self, other)    
+    def dot(self, other): return vector_math.dot_product(self, other)
+    def proj(self, other): return vector_math.project(self, other)
+    def cross(self, other): return vector_math.cross_product(self, other)    
 
 
 

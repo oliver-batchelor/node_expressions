@@ -7,6 +7,7 @@ from typing import List, Callable, Tuple, Any, Union, Optional
 
 from .util import typename, assert_type
 from .expression import NodeContext, Node, import_group
+from .value import Value
 
 
 socket_types = {
