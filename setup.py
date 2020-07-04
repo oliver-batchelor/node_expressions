@@ -2,7 +2,7 @@ from setuptools import setup, find_namespace_packages
 setup(
 
     name="node-expressions",
-    version="0.0.3",
+    version="0.1.2",
     author="Oliver Batchelor",
     author_email="saulzar@gmail.com",
     description="API for using expressions to create node graphs in blender",

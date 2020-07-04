@@ -275,6 +275,9 @@ class Node:
         return self._named.items()
 
     def __getattr__(self, key):
+        if key not in self._named:
+            attribs = list(self._named)
+            raise TypeError("Node {} has no output '{}', options are: {}".format(typename(self._node), key, str(attribs)))
         return self._named[key]
 
     def __getitem__(self, index):
