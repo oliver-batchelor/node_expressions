@@ -79,7 +79,7 @@ def node_subclasses(base_node, types=bpy.types):
         t = getattr(types, type_name)
         
         has_sockets = hasattr(t, 'input_template') or hasattr(t, 'output_template')
-        if issubclass(t, base_node) and has_sockets:
+        if inspect.isclass(t) and issubclass(t, base_node) and has_sockets:
               desc = node_desc(t)
               d[desc.name] = desc
 
